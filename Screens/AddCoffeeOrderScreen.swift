@@ -17,6 +17,8 @@ struct AddCoffeeOrderScreen: View {
     @Environment(CoffeeStore.self) private var coffeeStore
     @Environment(\.dismiss) private var dismiss
     
+    var order: Order? 
+    
     private var isFormValid: Bool {
        
         guard let totalValue = total, !name.isEmptyOrWhiteSpace, !coffeeName.isEmptyOrWhiteSpace, totalValue > 0 else {
@@ -26,7 +28,7 @@ struct AddCoffeeOrderScreen: View {
         return true
     }
     
-    private func save() async {
+    private func saveCoffeeOrder() async {
         
         guard let total = total else {
             return
@@ -42,6 +44,31 @@ struct AddCoffeeOrderScreen: View {
         }
     }
     
+    private func updateCoffeeOrder() async {
+        
+        guard let order = order,
+              let orderId = order.id,
+              let total = total else { return }
+        
+        let orderToUpdate = Order(id: orderId, name: name, coffeeName: coffeeName, total: total, size: coffeeSize)
+        
+        do {
+            try await coffeeStore.updateOrder(orderToUpdate)
+            dismiss() 
+        } catch {
+            print(error)
+        }
+        
+    }
+    
+    private var navigationTitle: String {
+        order != nil ? "Update Order": "New Order"
+    }
+    
+    private var saveOrUpdateButtonTitle: String {
+        order != nil ? "Update": "Save"
+    }
+    
     var body: some View {
         Form {
             TextField("Name", text: $name)
@@ -53,12 +80,24 @@ struct AddCoffeeOrderScreen: View {
                 }
             }.pickerStyle(.segmented)
         }
-        .navigationTitle("New Order")
+        .onAppear(perform: {
+            if let order {
+                name = order.name
+                coffeeName = order.coffeeName
+                total = order.total
+                coffeeSize = order.size
+            }
+        })
+        .navigationTitle(navigationTitle)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Save") {
+                Button(saveOrUpdateButtonTitle) {
                     Task {
-                        await save()
+                        if order != nil {
+                            await updateCoffeeOrder()
+                        } else {
+                            await saveCoffeeOrder()
+                        }
                     }
                 }.disabled(!isFormValid)
             }
